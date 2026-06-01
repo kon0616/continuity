@@ -1,14 +1,15 @@
 "use client";
 
 // ─── 会话控制 ─────────────────────────────────────────────────
-// 针对当前任务显示「开始专注」/「结束专注」按钮。
-// 展示会话状态和已用时间。
+// 计时器基于绝对时间戳 (Date.now() - sessionStartedAt)，
+// 浏览器切后台/冻结后恢复时时间依然准确。
 
 import { useState, useEffect, useCallback } from "react";
 import { useStore } from "@/lib/store";
 
 export default function SessionControls({ taskId }: { taskId: string }) {
   const task = useStore((s) => s.tasks.find((t) => t.taskId === taskId));
+  const sessionStartedAt = useStore((s) => s.sessionStartedAt);
   const startSession = useStore((s) => s.startSession);
   const endSession = useStore((s) => s.endSession);
   const [isBusy, setIsBusy] = useState(false);
@@ -16,26 +17,29 @@ export default function SessionControls({ taskId }: { taskId: string }) {
   const isActive = !!task?.currentSessionId;
   const currentSessionId = task?.currentSessionId ?? null;
 
-  // 活跃会话的计时器
-  const [elapsed, setElapsed] = useState(0);
+  // ═══ Absolute-time elapsed counter ═══
+  const [elapsedMs, setElapsedMs] = useState(0);
 
   useEffect(() => {
-    if (!isActive) {
-      setElapsed(0);
+    if (!isActive || !sessionStartedAt) {
+      setElapsedMs(0);
       return;
     }
 
-    const interval = setInterval(() => {
-      setElapsed((prev) => prev + 1);
-    }, 1000);
-
+    // Tick at ~1s to update the display, but compute from absolute time
+    const tick = () => {
+      setElapsedMs(Math.max(0, Date.now() - sessionStartedAt));
+    };
+    tick(); // immediate first render
+    const interval = setInterval(tick, 500);
     return () => clearInterval(interval);
-  }, [isActive]);
+  }, [isActive, sessionStartedAt]);
 
-  const formatElapsed = (seconds: number) => {
-    const h = Math.floor(seconds / 3600);
-    const m = Math.floor((seconds % 3600) / 60);
-    const s = seconds % 60;
+  const formatElapsed = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
     if (h > 0) return `${h} 小时 ${m} 分钟`;
     if (m > 0) return `${m} 分钟 ${s} 秒`;
     return `${s} 秒`;
@@ -71,7 +75,7 @@ export default function SessionControls({ taskId }: { taskId: string }) {
               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
             </span>
             <span className="font-medium tabular-nums">
-              {formatElapsed(elapsed)}
+              {formatElapsed(elapsedMs)}
             </span>
           </div>
 

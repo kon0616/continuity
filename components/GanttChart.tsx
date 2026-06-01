@@ -94,8 +94,15 @@ function GanttChartInner({
     return Math.max(4, (ms / rangeMs) * totalChartWidth);
   };
 
-  const today = Date.now();
-  const todayX = msToX(today);
+  // ═══ Today at local noon — aligns with day-tick grid ═══
+  const now = new Date();
+  const todayLocalNoon = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+    12, 0, 0
+  ).getTime();
+  const todayX = msToX(todayLocalNoon);
 
   // Generate day ticks (every 1-7 days depending on density)
   const tickInterval = dayCount > 60 ? 7 : dayCount > 14 ? 3 : 1;
@@ -106,6 +113,7 @@ function GanttChartInner({
   let monthStartX = 0;
 
   for (let i = 0; i <= dayCount; i += tickInterval) {
+    // Each tick is at local noon of that day
     const ts = min + i * 24 * 60 * 60 * 1000;
     const d = new Date(ts);
     const x = msToX(ts);

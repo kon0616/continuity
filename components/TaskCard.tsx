@@ -13,12 +13,16 @@ export default function TaskCard({ taskId }: { taskId: string }) {
   const completeTask = useStore((s) => s.completeTask);
   const deleteTask = useStore((s) => s.deleteTask);
   const scheduleTask = useStore((s) => s.scheduleTask);
+  const addRetrospectiveNote = useStore((s) => s.addRetrospectiveNote);
   const selectTask = useStore((s) => s.selectTask);
   const selectedTaskId = useStore((s) => s.selectedTaskId);
 
-  // Local date state — synced from snapshot on change
+  // Local date state
   const [startDate, setStartDate] = useState(task?.scheduledStartDate ?? "");
   const [endDate, setEndDate] = useState(task?.scheduledEndDate ?? "");
+  // Retrospective note input for completed tasks
+  const [showRetroInput, setShowRetroInput] = useState(false);
+  const [retroNote, setRetroNote] = useState("");
 
   useEffect(() => {
     setStartDate(task?.scheduledStartDate ?? "");
@@ -157,6 +161,54 @@ export default function TaskCard({ taskId }: { taskId: string }) {
           <p className="text-sm text-amber-900 whitespace-pre-wrap line-clamp-3">
             {task.lastRestartNote}
           </p>
+        </div>
+      )}
+
+      {/* ── 补充线索（仅已完成任务）────────────────────────── */}
+      {isCompleted && (
+        <div className="mb-3" onClick={(e) => e.stopPropagation()}>
+          {!showRetroInput ? (
+            <button
+              onClick={() => setShowRetroInput(true)}
+              className="text-xs text-muted-light hover:text-amber-600 transition-colors"
+            >
+              + 补充线索
+            </button>
+          ) : (
+            <div className="flex gap-2 items-start">
+              <textarea
+                value={retroNote}
+                onChange={(e) => setRetroNote(e.target.value)}
+                placeholder="补充一点上下文…"
+                rows={2}
+                className="textarea text-xs flex-1"
+                autoFocus
+              />
+              <div className="flex flex-col gap-1 shrink-0">
+                <button
+                  onClick={async () => {
+                    if (!retroNote.trim()) return;
+                    await addRetrospectiveNote(taskId, retroNote);
+                    setRetroNote("");
+                    setShowRetroInput(false);
+                  }}
+                  disabled={!retroNote.trim()}
+                  className="text-xs btn-primary px-2 py-1"
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => {
+                    setShowRetroInput(false);
+                    setRetroNote("");
+                  }}
+                  className="text-xs text-muted-light hover:text-gray-700 transition-colors"
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

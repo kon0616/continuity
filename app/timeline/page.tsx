@@ -1,17 +1,19 @@
 "use client";
 
 // ─── 时间线页面 ───────────────────────────────────────────────
-// 上半区：甘特图（长线任务规划视图）
+// 上半区：甘特图（长线任务规划视图，仅手动排期）
 // 下半区：按天聚合的历史节点流水账
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "@/lib/store";
 import GanttChart from "@/components/GanttChart";
 import TimelineView from "@/components/Timeline";
+import PlanModal from "@/components/PlanModal";
 
 export default function TimelinePage() {
   const initialize = useStore((s) => s.initialize);
   const isLoading = useStore((s) => s.isLoading);
+  const [planModalOpen, setPlanModalOpen] = useState(false);
 
   useEffect(() => {
     initialize();
@@ -20,13 +22,15 @@ export default function TimelinePage() {
   return (
     <div className="space-y-8">
       {/* 页面标题 */}
-      <section>
-        <h1 className="text-lg font-semibold text-gray-900 mb-1">
-          时间线
-        </h1>
-        <p className="text-sm text-muted">
-          长线任务规划 + 每日专注记录。
-        </p>
+      <section className="flex items-start justify-between">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900 mb-1">
+            时间线
+          </h1>
+          <p className="text-sm text-muted">
+            长线任务规划 + 每日专注记录。
+          </p>
+        </div>
       </section>
 
       {isLoading ? (
@@ -40,9 +44,17 @@ export default function TimelinePage() {
         <>
           {/* ── 上半区：甘特图 ──────────────────────────────── */}
           <section>
-            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
-              任务时间跨度
-            </h2>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xs font-semibold text-muted uppercase tracking-wider">
+                任务时间跨度
+              </h2>
+              <button
+                onClick={() => setPlanModalOpen(true)}
+                className="text-xs btn-secondary py-1 px-3"
+              >
+                + 新增长线规划
+              </button>
+            </div>
             <GanttChart />
           </section>
 
@@ -55,6 +67,11 @@ export default function TimelinePage() {
           </section>
         </>
       )}
+
+      <PlanModal
+        open={planModalOpen}
+        onClose={() => setPlanModalOpen(false)}
+      />
     </div>
   );
 }

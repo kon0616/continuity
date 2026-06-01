@@ -75,6 +75,7 @@ interface ContinuityState {
   // Derived snapshot state
   tasks: TaskSnapshot[];
   activeSession: { taskId: string; sessionId: string } | null;
+  sessionStartedAt: number | null; // absolute timestamp for drift-proof timer
   timeline: AppSnapshot["timeline"];
   dayTimeline: DayTimelineGroup[];
   ganttTasks: GanttTaskData[];
@@ -111,6 +112,7 @@ interface ContinuityState {
   startSession: (taskId: string) => Promise<string>;
   endSession: (taskId: string, sessionId: string) => Promise<void>;
   fileRestartNote: (note: string) => Promise<void>;
+  addRetrospectiveNote: (taskId: string, note: string) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
   scheduleTask: (taskId: string, startDate: string, endDate: string | null) => Promise<void>;
@@ -152,6 +154,7 @@ export const useStore = create<ContinuityState>((set, get) => ({
   // Initial state
   tasks: [],
   activeSession: null,
+  sessionStartedAt: null,
   timeline: [],
   dayTimeline: [],
   ganttTasks: [],
@@ -200,14 +203,21 @@ export const useStore = create<ContinuityState>((set, get) => ({
       isLoading: false,
       welcomeBackOpen: welcomeOpen,
       welcomeBackNote: "",
+      // If resuming an active session, approximate start time
+      sessionStartedAt: snapshot.activeSession ? Date.now() : null,
     });
   },
 
   refresh: async () => {
     const snapshot = await buildAppSnapshot();
+    const prev = get();
+    // Preserve sessionStartedAt if the same session is still active
+    const sameSession =
+      prev.activeSession?.sessionId === snapshot.activeSession?.sessionId;
     set({
       tasks: snapshot.tasks,
       activeSession: snapshot.activeSession,
+      sessionStartedAt: sameSession ? prev.sessionStartedAt : null,
       timeline: snapshot.timeline,
       dayTimeline: snapshot.dayTimeline,
       ganttTasks: snapshot.ganttTasks,
@@ -229,8 +239,11 @@ export const useStore = create<ContinuityState>((set, get) => ({
 
   startSession: async (taskId: string) => {
     const event = createSessionStartedEvent(taskId);
+    const now = Date.now();
     await appendEvent(event);
     await get().refresh();
+    // Record absolute start time for drift-proof timer
+    set({ activeSession: { taskId, sessionId: event.payload.sessionId }, sessionStartedAt: now });
     return event.payload.sessionId;
   },
 
@@ -241,6 +254,7 @@ export const useStore = create<ContinuityState>((set, get) => ({
     set({
       isRestartNoteModalOpen: true,
       pendingEndSession: { taskId, sessionId },
+      sessionStartedAt: null,
     });
   },
 
@@ -255,6 +269,15 @@ export const useStore = create<ContinuityState>((set, get) => ({
     await appendEvent(event);
     await get().refresh();
     set({ isRestartNoteModalOpen: false, pendingEndSession: null });
+  },
+
+  addRetrospectiveNote: async (taskId: string, note: string) => {
+    if (!note.trim()) return;
+    // Use a synthetic sessionId for post-completion notes
+    const syntheticSessionId = `retro-${Date.now()}`;
+    const event = createRestartNoteFiledEvent(taskId, syntheticSessionId, note.trim());
+    await appendEvent(event);
+    await get().refresh();
   },
 
   completeTask: async (taskId: string) => {
@@ -342,6 +365,7 @@ export const useStore = create<ContinuityState>((set, get) => ({
     set({
       tasks: [],
       activeSession: null,
+      sessionStartedAt: null,
       timeline: [],
       dayTimeline: [],
       ganttTasks: [],
