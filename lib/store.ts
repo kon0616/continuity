@@ -203,8 +203,10 @@ export const useStore = create<ContinuityState>((set, get) => ({
       isLoading: false,
       welcomeBackOpen: welcomeOpen,
       welcomeBackNote: "",
-      // If resuming an active session, approximate start time
-      sessionStartedAt: snapshot.activeSession ? Date.now() : null,
+      // Restore the ORIGINAL session start time from the event log.
+      // The absolute timer (Date.now() - sessionStartedAt) will
+      // instantly show the correct elapsed duration.
+      sessionStartedAt: snapshot.activeSession?.startedAt ?? null,
     });
   },
 

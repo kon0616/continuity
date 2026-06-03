@@ -95,7 +95,7 @@ export interface GanttTaskData {
 
 export interface AppSnapshot {
   tasks: TaskSnapshot[];
-  activeSession: { taskId: string; sessionId: string } | null;
+  activeSession: { taskId: string; sessionId: string; startedAt: number } | null;
   timeline: TimelineEntry[];
   dayTimeline: DayTimelineGroup[];
   ganttTasks: GanttTaskData[];
@@ -189,7 +189,7 @@ export async function buildAppSnapshot(): Promise<AppSnapshot> {
   const taskMap = new Map<string, TaskSnapshot>();
   const sessionMap = new Map<string, SessionInfo>();
   const timeline: TimelineEntry[] = [];
-  let activeSession: { taskId: string; sessionId: string } | null = null;
+  let activeSession: { taskId: string; sessionId: string; startedAt: number } | null = null;
   const deletedTaskIds = new Set<string>();
 
   // ═══ Pass 0: collect deleted task IDs first ═══
@@ -252,7 +252,7 @@ export async function buildAppSnapshot(): Promise<AppSnapshot> {
           startedAt: ts, endedAt: null,
           restartNote: null, status: "active",
         });
-        activeSession = { taskId, sessionId };
+        activeSession = { taskId, sessionId, startedAt: ts };
         if (task) {
           timeline.push({
             timestamp: ts, eventType: "SESSION_STARTED",
