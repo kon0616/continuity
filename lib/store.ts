@@ -84,7 +84,7 @@ interface ContinuityState {
   // UI-only state (not persisted in events)
   selectedTaskId: string | null;
   isRestartNoteModalOpen: boolean;
-  pendingEndSession: { taskId: string; sessionId: string } | null;
+  pendingEndSession: { taskId: string; sessionId: string; durationMs: number } | null;
   isLoading: boolean;
 
   // Welcome-back modal (daily check-in)
@@ -250,12 +250,16 @@ export const useStore = create<ContinuityState>((set, get) => ({
   },
 
   endSession: async (taskId: string, sessionId: string) => {
+    // Compute final duration BEFORE clearing sessionStartedAt
+    const startedAt = get().sessionStartedAt;
+    const durationMs = startedAt ? Math.max(0, Date.now() - startedAt) : 0;
+
     const event = createSessionEndedEvent(taskId, sessionId);
     await appendEvent(event);
     await get().refresh();
     set({
       isRestartNoteModalOpen: true,
-      pendingEndSession: { taskId, sessionId },
+      pendingEndSession: { taskId, sessionId, durationMs },
       sessionStartedAt: null,
     });
   },
@@ -355,7 +359,7 @@ export const useStore = create<ContinuityState>((set, get) => ({
   },
 
   openRestartNoteModal: (taskId: string, sessionId: string) => {
-    set({ isRestartNoteModalOpen: true, pendingEndSession: { taskId, sessionId } });
+    set({ isRestartNoteModalOpen: true, pendingEndSession: { taskId, sessionId, durationMs: 0 } });
   },
 
   closeRestartNoteModal: () => {

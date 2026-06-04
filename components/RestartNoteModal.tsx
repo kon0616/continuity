@@ -82,6 +82,17 @@ export default function RestartNoteModal() {
                 任务：{task.title}
               </p>
             )}
+
+            {/* ── 结算正向反馈 ──────────────────────────────── */}
+            {pendingEndSession.durationMs > 0 && (
+              <div className="mt-3 p-3 rounded-lg bg-green-50 border border-green-200">
+                <p className="text-sm font-medium text-green-800">
+                  🌟 辛苦了！本次深度专注持续了{" "}
+                  {formatDuration(pendingEndSession.durationMs)}。
+                </p>
+              </div>
+            )}
+
             <p className="text-sm text-muted mt-2">
               这段线索能帮助你自己（或其他人）在将来恢复这个任务时
               立刻理解上下文。下一个接手者最需要知道什么？
@@ -146,6 +157,18 @@ export default function RestartNoteModal() {
       </div>
     </div>
   );
+}
+
+// ─── 格式化时长 ─────────────────────────────────────────────
+
+function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h > 0 && m > 0) return `${h} 小时 ${m} 分钟`;
+  if (h > 0) return `${h} 小时`;
+  if (m > 0) return `${m} 分钟`;
+  return "不到 1 分钟";
 }
 
 // 恢复线索快捷填入提示
