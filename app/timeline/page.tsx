@@ -5,10 +5,20 @@
 // 下半区：按天聚合的历史节点流水账
 
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 import { useStore } from "@/lib/store";
 import GanttChart from "@/components/GanttChart";
 import TimelineView from "@/components/Timeline";
 import PlanModal from "@/components/PlanModal";
+
+const TimeStatsChart = dynamic(() => import("@/components/TimeStatsChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="card p-8 text-center">
+      <p className="text-sm text-muted">加载图表…</p>
+    </div>
+  ),
+});
 
 export default function TimelinePage() {
   const initialize = useStore((s) => s.initialize);
@@ -56,6 +66,14 @@ export default function TimelinePage() {
               </button>
             </div>
             <GanttChart />
+          </section>
+
+          {/* ── 中区：时间统计图表 ──────────────────────────── */}
+          <section>
+            <h2 className="text-xs font-semibold text-muted uppercase tracking-wider mb-3">
+              时间统计
+            </h2>
+            <TimeStatsChart />
           </section>
 
           {/* ── 下半区：历史节点流水账 ──────────────────────── */}

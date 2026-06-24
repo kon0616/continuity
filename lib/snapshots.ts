@@ -25,6 +25,7 @@ export interface TaskSnapshot {
   status: "active" | "completed" | "deleted";
   currentSessionId: string | null;
   sessionCount: number;
+  totalFocusMs: number;               // derived: sum of all completed focus sessions
   lastRestartNote: string | null;
   lastRestartNoteTimestamp: number | null;
   createdAt: number;
@@ -191,6 +192,7 @@ export async function buildAppSnapshot(): Promise<AppSnapshot> {
   const timeline: TimelineEntry[] = [];
   let activeSession: { taskId: string; sessionId: string; startedAt: number } | null = null;
   const deletedTaskIds = new Set<string>();
+  const pendingSessionStarts = new Map<string, number>(); // sessionId → startedAt (for totalFocusMs)
 
   // ═══ Pass 0: collect deleted task IDs first ═══
   for (const raw of events) {
@@ -220,6 +222,7 @@ export async function buildAppSnapshot(): Promise<AppSnapshot> {
           status: "active",
           currentSessionId: null,
           sessionCount: 0,
+          totalFocusMs: 0,
           lastRestartNote: null,
           lastRestartNoteTimestamp: null,
           createdAt: ts,
@@ -252,6 +255,7 @@ export async function buildAppSnapshot(): Promise<AppSnapshot> {
           startedAt: ts, endedAt: null,
           restartNote: null, status: "active",
         });
+        pendingSessionStarts.set(sessionId, ts);
         activeSession = { taskId, sessionId, startedAt: ts };
         if (task) {
           timeline.push({
@@ -273,6 +277,12 @@ export async function buildAppSnapshot(): Promise<AppSnapshot> {
         if (task) task.currentSessionId = null;
         const session = sessionMap.get(sessionId);
         if (session) { session.endedAt = ts; session.status = "ended"; }
+        // Accumulate focus time from completed session
+        const sessionStart = pendingSessionStarts.get(sessionId);
+        if (sessionStart && task) {
+          task.totalFocusMs += Math.max(0, ts - sessionStart);
+        }
+        pendingSessionStarts.delete(sessionId);
         if (activeSession && activeSession.sessionId === sessionId) {
           activeSession = null;
         }
@@ -317,6 +327,14 @@ export async function buildAppSnapshot(): Promise<AppSnapshot> {
 
         const task = taskMap.get(taskId);
         if (task) {
+          // Close any unclosed session and accumulate its time
+          if (task.currentSessionId) {
+            const start = pendingSessionStarts.get(task.currentSessionId);
+            if (start) {
+              task.totalFocusMs += Math.max(0, ts - start);
+            }
+            pendingSessionStarts.delete(task.currentSessionId);
+          }
           task.status = "completed";
           task.completedAt = ts;
           task.currentSessionId = null;

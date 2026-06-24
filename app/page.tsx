@@ -18,6 +18,11 @@ import TaskCard from "@/components/TaskCard";
 import RestartNoteModal from "@/components/RestartNoteModal";
 import WelcomeBackModal from "@/components/WelcomeBackModal";
 import ReminderArea from "@/components/ReminderArea";
+import dynamic from "next/dynamic";
+
+const DataMigration = dynamic(() => import("@/components/DataMigration"), {
+  ssr: false,
+});
 
 export default function TaskFocusScreen() {
   const initialize = useStore((s) => s.initialize);
@@ -109,6 +114,11 @@ export default function TaskFocusScreen() {
       {/* 弹窗 */}
       <RestartNoteModal />
       <WelcomeBackModal />
+
+      {/* 数据迁移 */}
+      <section>
+        <DataMigration />
+      </section>
 
       {/* 重置按钮 */}
       <div className="pt-8 flex justify-center">

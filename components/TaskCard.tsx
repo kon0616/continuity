@@ -6,6 +6,7 @@
 
 import { useState, useEffect } from "react";
 import { useStore } from "@/lib/store";
+import { useTaskTotalTime } from "@/lib/hooks";
 import SessionControls from "./SessionControls";
 
 export default function TaskCard({ taskId }: { taskId: string }) {
@@ -16,6 +17,8 @@ export default function TaskCard({ taskId }: { taskId: string }) {
   const addRetrospectiveNote = useStore((s) => s.addRetrospectiveNote);
   const selectTask = useStore((s) => s.selectTask);
   const selectedTaskId = useStore((s) => s.selectedTaskId);
+  const sessionStartedAt = useStore((s) => s.sessionStartedAt);
+  const activeSessionTaskId = useStore((s) => s.activeSession?.taskId);
 
   // Local date state
   const [startDate, setStartDate] = useState(task?.scheduledStartDate ?? "");
@@ -30,6 +33,14 @@ export default function TaskCard({ taskId }: { taskId: string }) {
   }, [task?.scheduledStartDate, task?.scheduledEndDate]);
 
   if (!task) return null;
+
+  // Live total focus time — ticks every 60s when a session is active on this task
+  const totalTime = useTaskTotalTime(
+    task.totalFocusMs,
+    !!task.currentSessionId && activeSessionTaskId === taskId
+      ? sessionStartedAt
+      : null
+  );
 
   const isSelected = selectedTaskId === taskId;
   const isActive = !!task.currentSessionId;
@@ -80,6 +91,9 @@ export default function TaskCard({ taskId }: { taskId: string }) {
                   ? `${task.sessionCount} 次专注`
                   : "未开始"}
               </span>
+            )}
+            {totalTime && (
+              <span className="badge-muted">{totalTime}</span>
             )}
           </div>
         </div>

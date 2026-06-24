@@ -100,3 +100,41 @@ export async function clearAllData(): Promise<void> {
   await db.events.clear();
   await db.snapshots.clear();
 }
+
+// ─── Data Migration ─────────────────────────────────────────
+// For cross-domain moves (IndexedDB is domain-scoped).
+
+/**
+ * Export the entire database as a JSON file download.
+ */
+export async function exportData(): Promise<void> {
+  // Lazy-load dexie-export-import (browser-only, adds methods to Dexie prototype)
+  await import("dexie-export-import");
+  const db = getDB();
+  const blob = await (db as any).export({ prettyJson: true });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `continuity-backup-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Import data from a JSON file, replacing all existing data.
+ * Clears current tables first, then imports.
+ */
+export async function importData(file: File): Promise<void> {
+  // Lazy-load dexie-export-import (browser-only, adds methods to Dexie prototype)
+  await import("dexie-export-import");
+  const db = getDB();
+  // Clear existing data before import
+  await db.transaction("rw", db.events, db.snapshots, async () => {
+    await db.events.clear();
+    await db.snapshots.clear();
+  });
+  // Import — dexie-export-import adds this method
+  await (db as any).import(file);
+}
