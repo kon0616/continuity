@@ -9,6 +9,7 @@
 //  • SESSION_ENDED 仅用于计算当天该任务的专注时长
 //  • 左侧主线 + 右侧摘要卡片
 
+import { useState } from "react";
 import { useStore } from "@/lib/store";
 import type { DayTimelineGroup, TaskDaySummary } from "@/lib/snapshots";
 
@@ -98,7 +99,7 @@ function DayBlock({
           <div className="space-y-2">
             {tasks.map((task) => {
               if (!task || !task.taskId) return null;
-              return <TaskDayCard key={task.taskId} task={task} />;
+              return <TaskDayCard key={task.taskId} task={task} date={day.date} />;
             })}
           </div>
         </div>
@@ -109,16 +110,45 @@ function DayBlock({
 
 // ─── 单任务卡片（日内）────────────────────────────────────────
 
-function TaskDayCard({ task }: { task: TaskDaySummary }) {
+function TaskDayCard({
+  task,
+  date,
+}: {
+  task: TaskDaySummary;
+  date: string;
+}) {
   // ═══ DEFENSIVE: ensure mandatory fields exist ═══
   if (!task) return null;
   const title = task.taskTitle ?? task.taskId ?? "未知任务";
   const note = task.restartNote ?? null;
   const completed = task.wasCompleted ?? false;
+  const deleteDaySessions = useStore((s) => s.deleteDaySessions);
+  const [confirming, setConfirming] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!confirming) {
+      setConfirming(true);
+      return;
+    }
+    setDeleting(true);
+    try {
+      await deleteDaySessions(task.taskId, date);
+    } catch {
+      // fall through — store.refresh() may have failed
+    } finally {
+      setDeleting(false);
+      setConfirming(false);
+    }
+  };
+
+  const handleCancel = () => setConfirming(false);
 
   return (
     <div
-      className={`rounded-lg border p-3 transition-colors ${
+      className={`rounded-lg border p-3 transition-colors group relative ${
+        deleting ? "opacity-40 pointer-events-none" : ""
+      } ${
         completed
           ? "bg-green-50/50 border-green-100"
           : note
@@ -146,8 +176,8 @@ function TaskDayCard({ task }: { task: TaskDaySummary }) {
           )}
         </div>
 
-        {/* 状态标签 */}
-        <div className="shrink-0">
+        {/* 状态标签 + 删除按钮 */}
+        <div className="shrink-0 flex items-center gap-1.5">
           {completed ? (
             <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-100 rounded-full px-2 py-0.5">
               <svg className="w-3 h-3" viewBox="0 0 12 12" fill="none">
@@ -167,6 +197,32 @@ function TaskDayCard({ task }: { task: TaskDaySummary }) {
               📋 有线索
             </span>
           ) : null}
+
+          {/* Delete button — visible on hover, two-step confirm */}
+          {confirming ? (
+            <span className="inline-flex items-center gap-1">
+              <button
+                onClick={handleDelete}
+                className="text-xs rounded-full px-2 py-0.5 bg-red-500 text-white hover:bg-red-600 transition-all"
+              >
+                确认删除？
+              </button>
+              <button
+                onClick={handleCancel}
+                className="text-xs text-gray-400 hover:text-gray-600 rounded-full px-1.5 py-0.5 transition-all"
+              >
+                取消
+              </button>
+            </span>
+          ) : (
+            <button
+              onClick={handleDelete}
+              title="删除此记录"
+              className="text-xs rounded-full px-2 py-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+            >
+              ✕
+            </button>
+          )}
         </div>
       </div>
 

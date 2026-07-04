@@ -7,7 +7,7 @@
 // 中部：圆环饼图（无 Legend，保留 Tooltip）
 // 底部：自定义滚动列表，颜色块 + 任务名 + 精确耗时
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   PieChart,
   Pie,
@@ -64,10 +64,51 @@ function ChartTooltip({
 
 export default function TimeStatsChart() {
   const tasks = useStore((s) => s.tasks);
+  const deleteRangeSessions = useStore((s) => s.deleteRangeSessions);
   const [mode, setMode] = useState<PeriodMode>("week");
   const [data, setData] = useState<PieAggregation | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmingId, setConfirmingId] = useState<string | null>(null);
+
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      if (confirmingId !== taskId) {
+        setConfirmingId(taskId);
+        return;
+      }
+      setDeletingId(taskId);
+      setConfirmingId(null);
+      // Compute current period range
+      const now = new Date();
+      let startMs: number;
+      let endMs: number;
+      if (mode === "year") {
+        startMs = new Date(now.getFullYear(), 0, 1).getTime();
+        endMs = new Date(now.getFullYear() + 1, 0, 1).getTime();
+      } else if (mode === "month") {
+        startMs = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        endMs = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime();
+      } else {
+        // week
+        const day = now.getDay();
+        const mondayOffset = day === 0 ? -6 : 1 - day;
+        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate() + mondayOffset);
+        monday.setHours(0, 0, 0, 0);
+        startMs = monday.getTime();
+        endMs = startMs + 7 * 24 * 60 * 60 * 1000;
+      }
+      try {
+        await deleteRangeSessions(taskId, startMs, endMs);
+      } catch {
+        // fall through
+      } finally {
+        setDeletingId(null);
+      }
+    },
+    [confirmingId, mode, deleteRangeSessions]
+  );
 
   // Load events and compute aggregation
   useEffect(() => {
@@ -196,41 +237,83 @@ export default function TimeStatsChart() {
 
         {/* ── Custom list legend ─────────────────────────────── */}
         <div className="space-y-0 divide-y divide-gray-50">
-          {data.slices.map((slice, index) => (
-            <div
-              key={slice.taskId}
-              className="flex items-center gap-3.5 py-3 first:pt-0 last:pb-0 cursor-default"
-              onMouseEnter={() => setActiveIndex(index)}
-              onMouseLeave={() => setActiveIndex(null)}
-            >
-              {/* Color block */}
+          {data.slices.map((slice, index) => {
+            const isConfirming = confirmingId === slice.taskId;
+            const isDeleting = deletingId === slice.taskId;
+            return (
               <div
-                className="w-10 h-10 rounded-lg shrink-0 transition-transform duration-150"
-                style={{
-                  backgroundColor: slice.color,
-                  transform:
-                    activeIndex === index ? "scale(1.08)" : "scale(1)",
-                }}
-              />
+                key={slice.taskId}
+                className={`flex items-center gap-3.5 py-3 first:pt-0 last:pb-0 cursor-default group ${
+                  isDeleting ? "opacity-30 pointer-events-none" : ""
+                }`}
+                onMouseEnter={() => setActiveIndex(index)}
+                onMouseLeave={() => setActiveIndex(null)}
+              >
+                {/* Color block */}
+                <div
+                  className="w-10 h-10 rounded-lg shrink-0 transition-transform duration-150"
+                  style={{
+                    backgroundColor: slice.color,
+                    transform:
+                      activeIndex === index ? "scale(1.08)" : "scale(1)",
+                  }}
+                />
 
-              {/* Text content */}
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">
-                  {slice.taskTitle}
-                </p>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  {formatFocusDuration(slice.totalMs)}
-                </p>
-              </div>
+                {/* Text content */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">
+                    {slice.taskTitle}
+                  </p>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {formatFocusDuration(slice.totalMs)}
+                  </p>
+                </div>
 
-              {/* Percentage */}
-              <div className="text-right shrink-0">
-                <p className="text-sm font-semibold text-gray-700">
-                  {slice.percentage.toFixed(1)}%
-                </p>
+                {/* Percentage + Delete */}
+                <div className="text-right shrink-0 flex items-center gap-1.5">
+                  <p className="text-sm font-semibold text-gray-700">
+                    {slice.percentage.toFixed(1)}%
+                  </p>
+
+                  {/* Delete button — hidden for "Others" */}
+                  {slice.taskId !== "__others__" &&
+                    (isConfirming ? (
+                      <span className="inline-flex items-center gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteTask(slice.taskId);
+                          }}
+                          className="text-xs rounded-full px-2 py-0.5 bg-red-500 text-white hover:bg-red-600 transition-all"
+                        >
+                          确认删除？
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmingId(null);
+                          }}
+                          className="text-xs text-gray-400 hover:text-gray-600 rounded-full px-1.5 py-0.5 transition-all"
+                        >
+                          取消
+                        </button>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteTask(slice.taskId);
+                        }}
+                        title="删除此任务的时间记录"
+                        className="text-xs rounded-full px-2 py-0.5 text-gray-400 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all"
+                      >
+                        ✕
+                      </button>
+                    ))}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

@@ -6,7 +6,7 @@
 // API key / base URL / systemPrompt survive page refreshes.
 
 import { create } from "zustand";
-import { appendEvent, clearAllData } from "./db";
+import { appendEvent, clearAllData, deleteTaskDaySessions, deleteTaskRangeSessions } from "./db";
 import {
   createTaskCreatedEvent,
   createSessionStartedEvent,
@@ -115,6 +115,8 @@ interface ContinuityState {
   addRetrospectiveNote: (taskId: string, note: string) => Promise<void>;
   completeTask: (taskId: string) => Promise<void>;
   deleteTask: (taskId: string) => Promise<void>;
+  deleteDaySessions: (taskId: string, dateStr: string) => Promise<void>;
+  deleteRangeSessions: (taskId: string, startMs: number, endMs: number) => Promise<void>;
   scheduleTask: (taskId: string, startDate: string, endDate: string | null) => Promise<void>;
   selectTask: (taskId: string | null) => void;
   openRestartNoteModal: (taskId: string, sessionId: string) => void;
@@ -307,6 +309,16 @@ export const useStore = create<ContinuityState>((set, get) => ({
     if (get().selectedTaskId === taskId) {
       set({ selectedTaskId: null });
     }
+  },
+
+  deleteDaySessions: async (taskId: string, dateStr: string) => {
+    await deleteTaskDaySessions(taskId, dateStr);
+    await get().refresh();
+  },
+
+  deleteRangeSessions: async (taskId: string, startMs: number, endMs: number) => {
+    await deleteTaskRangeSessions(taskId, startMs, endMs);
+    await get().refresh();
   },
 
   scheduleTask: async (taskId: string, startDate: string, endDate: string | null) => {
