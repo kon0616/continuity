@@ -253,12 +253,25 @@ export async function clearAllData(): Promise<void> {
 
 /**
  * Export the entire database as a JSON file download.
+ * Manual implementation — no dependency on dexie-export-import.
  */
 export async function exportData(): Promise<void> {
-  // Lazy-load dexie-export-import (browser-only, adds methods to Dexie prototype)
-  await import("dexie-export-import");
   const db = getDB();
-  const blob = await (db as any).export({ prettyJson: true });
+  const events = await db.events.toArray();
+  const snapshots = await db.snapshots.toArray();
+
+  const data = JSON.stringify(
+    {
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      events,
+      snapshots,
+    },
+    null,
+    2
+  );
+
+  const blob = new Blob([data], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -271,17 +284,26 @@ export async function exportData(): Promise<void> {
 
 /**
  * Import data from a JSON file, replacing all existing data.
- * Clears current tables first, then imports.
+ * Manual implementation — no dependency on dexie-export-import.
  */
 export async function importData(file: File): Promise<void> {
-  // Lazy-load dexie-export-import (browser-only, adds methods to Dexie prototype)
-  await import("dexie-export-import");
+  const text = await file.text();
+  const data = JSON.parse(text);
+
+  // Support both old (dexie-export-import) and new format
+  const events = data.events ?? data;
+  const snapshots = data.snapshots ?? [];
+
   const db = getDB();
-  // Clear existing data before import
   await db.transaction("rw", db.events, db.snapshots, async () => {
     await db.events.clear();
     await db.snapshots.clear();
+
+    if (Array.isArray(events) && events.length > 0) {
+      await db.events.bulkAdd(events);
+    }
+    if (Array.isArray(snapshots) && snapshots.length > 0) {
+      await db.snapshots.bulkAdd(snapshots);
+    }
   });
-  // Import — dexie-export-import adds this method
-  await (db as any).import(file);
 }

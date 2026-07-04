@@ -15,7 +15,6 @@
   "dependencies": {
     "@opennextjs/cloudflare": "^1.19.11",
     "dexie": "^4.0.8",
-    "dexie-export-import": "^4.4.0",
     "dexie-react-hooks": "^1.1.7",
     "next": "^14.2.15",
     "react": "^18.3.1",
